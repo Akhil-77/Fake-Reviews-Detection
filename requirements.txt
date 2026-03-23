@@ -1,0 +1,22 @@
+# ── core ──────────────────────────────────────────────────────
+flask>=3.0.0
+numpy>=1.26.0
+pandas>=2.2.0
+scipy>=1.13.0
+
+# ── classical ML ───────────────────────────────────────────────
+scikit-learn>=1.4.0
+
+# ── deep learning ──────────────────────────────────────────────
+tensorflow>=2.16.0        # includes Keras 3
+
+# ── transformers ───────────────────────────────────────────────
+transformers>=4.40.0
+torch>=2.2.0              # CPU-only build is fine for inference
+
+# ── optional (speeds up HuggingFace tokenizers) ────────────────
+tokenizers>=0.19.0
+sentencepiece>=0.2.0
+
+# ── production WSGI server (Render / Railway) ─────────────────
+gunicorn>=21.0.0

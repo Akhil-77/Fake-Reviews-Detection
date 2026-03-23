@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>YelpZIP · Fake Review Detector</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;800&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0d0f11;
+      --surface:   #151820;
+      --border:    #252a35;
+      --accent:    #f5c542;
+      --accent2:   #e05c3a;
+      --text:      #e8eaf0;
+      --muted:     #6b7280;
+      --radius:    10px;
+      --mono:      'DM Mono', monospace;
+      --sans:      'Syne', sans-serif;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 48px 16px 80px;
+    }
+
+    /* ── header ──────────────────────────────────────────── */
+    header {
+      text-align: center;
+      margin-bottom: 52px;
+      animation: fadeDown .6s ease both;
+    }
+    header .badge {
+      display: inline-block;
+      font-family: var(--mono);
+      font-size: .7rem;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      border-radius: 4px;
+      padding: 3px 10px;
+      margin-bottom: 16px;
+    }
+    header h1 {
+      font-size: clamp(2rem, 6vw, 3.6rem);
+      font-weight: 800;
+      line-height: 1.1;
+      letter-spacing: -.02em;
+    }
+    header h1 span { color: var(--accent); }
+    header p {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: .95rem;
+      max-width: 460px;
+      margin-inline: auto;
+    }
+
+    /* ── card ────────────────────────────────────────────── */
+    .card {
+      width: 100%;
+      max-width: 720px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px;
+      animation: fadeUp .55s .1s ease both;
+    }
+
+    /* ── model selector ──────────────────────────────────── */
+    .model-section label {
+      display: block;
+      font-size: .78rem;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 14px;
+      font-family: var(--mono);
+    }
+    .model-groups { display: flex; flex-direction: column; gap: 10px; }
+    .group-label {
+      font-family: var(--mono);
+      font-size: .68rem;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .model-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .chip {
+      cursor: pointer;
+      padding: 7px 16px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-family: var(--mono);
+      font-size: .8rem;
+      color: var(--muted);
+      background: transparent;
+      transition: all .18s ease;
+      user-select: none;
+    }
+    .chip:hover { border-color: var(--accent); color: var(--accent); }
+    .chip.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #0d0f11;
+      font-weight: 500;
+    }
+
+    /* ── divider ─────────────────────────────────────────── */
+    .divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 28px 0;
+    }
+
+    /* ── textarea ────────────────────────────────────────── */
+    .text-section label {
+      display: block;
+      font-size: .78rem;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 10px;
+      font-family: var(--mono);
+    }
+    textarea {
+      width: 100%;
+      min-height: 140px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: .88rem;
+      line-height: 1.6;
+      padding: 14px;
+      resize: vertical;
+      outline: none;
+      transition: border-color .18s;
+    }
+    textarea:focus { border-color: var(--accent); }
+    textarea::placeholder { color: var(--muted); }
+
+    /* ── submit ──────────────────────────────────────────── */
+    .actions { display: flex; gap: 10px; margin-top: 16px; }
+    .btn-analyze {
+      flex: 1;
+      padding: 13px;
+      background: var(--accent);
+      color: #0d0f11;
+      border: none;
+      border-radius: var(--radius);
+      font-family: var(--sans);
+      font-size: .95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .15s, transform .12s;
+    }
+    .btn-analyze:hover  { opacity: .88; }
+    .btn-analyze:active { transform: scale(.98); }
+    .btn-analyze:disabled { opacity: .4; cursor: not-allowed; }
+    .btn-clear {
+      padding: 13px 18px;
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-family: var(--sans);
+      font-size: .88rem;
+      cursor: pointer;
+      transition: color .15s, border-color .15s;
+    }
+    .btn-clear:hover { color: var(--text); border-color: var(--muted); }
+
+    /* ── result ──────────────────────────────────────────── */
+    #result-box {
+      margin-top: 24px;
+      border-radius: var(--radius);
+      padding: 22px 24px;
+      border: 1px solid var(--border);
+      display: none;
+      animation: fadeUp .35s ease both;
+    }
+    #result-box.real  { border-color: #34d399; background: rgba(52,211,153,.07); }
+    #result-box.fake  { border-color: var(--accent2); background: rgba(224,92,58,.07); }
+    #result-box.error { border-color: #ef4444; background: rgba(239,68,68,.07); }
+
+    .result-verdict {
+      font-size: 1.7rem;
+      font-weight: 800;
+      letter-spacing: -.01em;
+    }
+    .real  .result-verdict { color: #34d399; }
+    .fake  .result-verdict { color: var(--accent2); }
+    .error .result-verdict { color: #ef4444; }
+
+    .result-meta {
+      margin-top: 8px;
+      font-family: var(--mono);
+      font-size: .8rem;
+      color: var(--muted);
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    .result-meta span b { color: var(--text); }
+
+    /* confidence bar */
+    .conf-bar-wrap {
+      margin-top: 14px;
+      background: var(--border);
+      border-radius: 4px;
+      height: 6px;
+      overflow: hidden;
+    }
+    .conf-bar {
+      height: 100%;
+      border-radius: 4px;
+      transition: width .5s cubic-bezier(.4,0,.2,1);
+    }
+    .real  .conf-bar { background: #34d399; }
+    .fake  .conf-bar { background: var(--accent2); }
+
+    /* ── loading spinner ─────────────────────────────────── */
+    .spinner {
+      display: none;
+      width: 18px; height: 18px;
+      border: 2px solid rgba(0,0,0,.3);
+      border-top-color: #0d0f11;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      margin: 0 auto;
+    }
+
+    /* ── examples ────────────────────────────────────────── */
+    .examples {
+      margin-top: 28px;
+      width: 100%;
+      max-width: 720px;
+      animation: fadeUp .55s .2s ease both;
+    }
+    .examples h3 {
+      font-size: .78rem;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-family: var(--mono);
+      margin-bottom: 12px;
+    }
+    .example-row { display: flex; gap: 10px; flex-wrap: wrap; }
+    .example-pill {
+      cursor: pointer;
+      padding: 8px 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: .82rem;
+      color: var(--muted);
+      transition: all .18s;
+      max-width: 340px;
+      text-overflow: ellipsis;
+      overflow: hidden;
+      white-space: nowrap;
+    }
+    .example-pill:hover { color: var(--text); border-color: var(--accent); }
+
+    /* ── animations ──────────────────────────────────────── */
+    @keyframes fadeDown { from { opacity:0; transform:translateY(-18px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes fadeUp   { from { opacity:0; transform:translateY(14px);  } to { opacity:1; transform:translateY(0); } }
+    @keyframes spin     { to { transform: rotate(360deg); } }
+
+    @media (max-width: 520px) {
+      .card { padding: 22px 18px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="badge">YelpZIP Dataset · NLP Project</div>
+  <h1>Fake Review <span>Detector</span></h1>
+  <p>Select a model, paste a review, and get an instant real / fake prediction.</p>
+</header>
+
+<div class="card">
+
+  <!-- Model Selector -->
+  <div class="model-section">
+    <label>Select Model</label>
+    <div class="model-groups">
+
+      <div>
+        <div class="group-label">A · Classical ML</div>
+        <div class="model-chips">
+          <div class="chip active" data-model="logistic_regression">Logistic Regression</div>
+          <div class="chip" data-model="random_forest">Random Forest</div>
+        </div>
+      </div>
+
+      <div>
+        <div class="group-label">B · Deep Learning</div>
+        <div class="model-chips">
+          <div class="chip" data-model="lstm">LSTM</div>
+          <div class="chip" data-model="bilstm">BiLSTM</div>
+        </div>
+      </div>
+
+      <div>
+        <div class="group-label">C · Transformer</div>
+        <div class="model-chips">
+          <div class="chip" data-model="bert">BERT</div>
+          <div class="chip" data-model="roberta">RoBERTa</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <hr class="divider"/>
+
+  <!-- Text Input -->
+  <div class="text-section">
+    <label>Review Text</label>
+    <textarea id="review-input" placeholder="Paste or type a Yelp review here…"></textarea>
+  </div>
+
+  <!-- Actions -->
+  <div class="actions">
+    <button class="btn-analyze" id="analyze-btn" onclick="analyze()">
+      <span id="btn-text">Analyze Review</span>
+      <div class="spinner" id="spinner"></div>
+    </button>
+    <button class="btn-clear" onclick="clearAll()">Clear</button>
+  </div>
+
+  <!-- Result -->
+  <div id="result-box">
+    <div class="result-verdict" id="verdict"></div>
+    <div class="result-meta" id="meta"></div>
+    <div class="conf-bar-wrap">
+      <div class="conf-bar" id="conf-bar" style="width:0%"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Quick Examples -->
+<div class="examples">
+  <h3>Quick Examples</h3>
+  <div class="example-row">
+    <div class="example-pill" onclick="setExample(this)">Drinks were bad, the hot chocolate was watered down and tasteless.</div>
+    <div class="example-pill" onclick="setExample(this)">I enjoyed coffee and breakfast twice at Toast — fantastic food choices and warm staff!</div>
+    <div class="example-pill" onclick="setExample(this)">This was the worst experience I've ever had at a restaurant. Never coming back.</div>
+    <div class="example-pill" onclick="setExample(this)">Great ambiance, the staff was super friendly and the pasta was to die for!</div>
+  </div>
+</div>
+
+<script>
+  let selectedModel = "logistic_regression";
+
+  // chip selection
+  document.querySelectorAll(".chip").forEach(chip => {
+    chip.addEventListener("click", () => {
+      document.querySelectorAll(".chip").forEach(c => c.classList.remove("active"));
+      chip.classList.add("active");
+      selectedModel = chip.dataset.model;
+    });
+  });
+
+  function setExample(el) {
+    document.getElementById("review-input").value = el.textContent.trim();
+  }
+
+  function setLoading(on) {
+    const btn     = document.getElementById("analyze-btn");
+    const spinner = document.getElementById("spinner");
+    const btnText = document.getElementById("btn-text");
+    btn.disabled      = on;
+    spinner.style.display = on ? "block" : "none";
+    btnText.style.display = on ? "none"  : "inline";
+  }
+
+  function showResult({ label, confidence, model, error }) {
+    const box = document.getElementById("result-box");
+    box.className = "";                     // reset classes
+    box.style.display = "block";
+
+    if (error) {
+      box.classList.add("error");
+      document.getElementById("verdict").textContent = "Error";
+      document.getElementById("meta").innerHTML = `<span>${error}</span>`;
+      document.getElementById("conf-bar").style.width = "0%";
+      return;
+    }
+
+    const isReal = label === "real";
+    box.classList.add(isReal ? "real" : "fake");
+
+    document.getElementById("verdict").textContent =
+      isReal ? "✓ Real Review" : "✗ Fake Review";
+
+    const pct = Math.round(confidence * 100);
+    document.getElementById("meta").innerHTML =
+      `<span>Confidence: <b>${pct}%</b></span><span>Model: <b>${model.replace(/_/g," ")}</b></span>`;
+
+    // animate bar after a tick
+    setTimeout(() => {
+      document.getElementById("conf-bar").style.width = pct + "%";
+    }, 30);
+  }
+
+  async function analyze() {
+    const text = document.getElementById("review-input").value.trim();
+    if (!text) { alert("Please enter a review first."); return; }
+
+    setLoading(true);
+    try {
+      const res  = await fetch("/predict", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, model: selectedModel }),
+      });
+      const data = await res.json();
+      showResult(data);
+    } catch (e) {
+      showResult({ error: "Network error – is the server running?" });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function clearAll() {
+    document.getElementById("review-input").value = "";
+    const box = document.getElementById("result-box");
+    box.style.display = "none";
+    document.getElementById("conf-bar").style.width = "0%";
+  }
+
+  // allow Ctrl+Enter to submit
+  document.getElementById("review-input").addEventListener("keydown", e => {
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) analyze();
+  });
+</script>
+</body>
+</html>
