@@ -1,20 +1,27 @@
 """
 classical_models.py
 ===================
-Trains Logistic Regression and Random Forest on the TF-IDF features produced
-by data_prep.py, evaluates them, and saves the fitted models.
+Trains the five classical baselines committed to in the project writeup:
+  - Logistic Regression
+  - Random Forest
+  - Multinomial Naive Bayes
+  - Decision Tree
+  - Linear SVM (calibrated for predict_proba)
 
 Run AFTER data_prep.py:
     python classical_models.py
 
 Useful options:
     python classical_models.py --model logistic
-    python classical_models.py --model random_forest
+    python classical_models.py --model naive_bayes
     python classical_models.py --rf-sample-size 50000
 
 Saved artefacts (./artifacts/):
     logistic_regression.pkl
     random_forest.pkl
+    naive_bayes.pkl
+    decision_tree.pkl
+    linear_svm.pkl
 """
 
 import argparse
@@ -24,6 +31,7 @@ import pickle
 import numpy as np
 from scipy.sparse import load_npz
 
+from sklearn.calibration import CalibratedClassifierCV
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
@@ -33,6 +41,9 @@ from sklearn.metrics import (
     roc_auc_score,
 )
 from sklearn.model_selection import train_test_split
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.svm import LinearSVC
+from sklearn.tree import DecisionTreeClassifier
 
 # ---- config -----------------------------------------------------------------
 ARTIFACT_DIR = "artifacts"
@@ -161,6 +172,39 @@ def train_random_forest(X_train, y_train, sample_size=RF_TRAIN_SAMPLE_SIZE):
     return model
 
 
+def train_naive_bayes(X_train, y_train):
+    print("\nTraining Multinomial Naive Bayes ...")
+    model = MultinomialNB(alpha=0.1)
+    model.fit(X_train, y_train)
+    return model
+
+
+def train_decision_tree(X_train, y_train):
+    print("\nTraining Decision Tree ...")
+    model = DecisionTreeClassifier(
+        max_depth=int(os.environ.get("DT_MAX_DEPTH", "50")),
+        min_samples_leaf=int(os.environ.get("DT_MIN_LEAF", "20")),
+        class_weight="balanced",
+        random_state=RANDOM_STATE,
+    )
+    model.fit(X_train, y_train)
+    return model
+
+
+def train_linear_svm(X_train, y_train):
+    print("\nTraining Linear SVM (calibrated for probabilities) ...")
+    base = LinearSVC(
+        C=1.0,
+        class_weight="balanced",
+        max_iter=2000,
+        random_state=RANDOM_STATE,
+    )
+    # CalibratedClassifierCV gives us predict_proba for ROC-AUC and the web app.
+    model = CalibratedClassifierCV(base, cv=3, n_jobs=-1)
+    model.fit(X_train, y_train)
+    return model
+
+
 def save_model(model, filename):
     os.makedirs(ARTIFACT_DIR, exist_ok=True)
     path = os.path.join(ARTIFACT_DIR, filename)
@@ -169,11 +213,27 @@ def save_model(model, filename):
     print(f"  Saved -> {path}")
 
 
+def already_trained(filename):
+    """Skip retraining if the artefact already exists and is non-empty."""
+    path = os.path.join(ARTIFACT_DIR, filename)
+    return os.path.exists(path) and os.path.getsize(path) > 0
+
+
+def maybe_train(name, filename, train_fn, X_train, y_train, X_test, y_test, force):
+    if already_trained(filename) and not force:
+        print(f"\nSkipping {name} — {filename} already exists. Use --force to retrain.")
+        return
+    model = train_fn(X_train, y_train)
+    evaluate(name, model, X_test, y_test)
+    save_model(model, filename)
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Train classical fake-review models.")
     parser.add_argument(
         "--model",
-        choices=["all", "logistic", "random_forest"],
+        choices=["all", "logistic", "random_forest",
+                 "naive_bayes", "decision_tree", "linear_svm"],
         default="all",
         help="Choose which model to train. Default: all",
     )
@@ -183,6 +243,11 @@ def parse_args():
         default=RF_TRAIN_SAMPLE_SIZE,
         help="Rows used to train Random Forest. Use 0 for full data. Default: 50000",
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Retrain even if the artefact already exists.",
+    )
     return parser.parse_args()
 
 
@@ -191,13 +256,27 @@ if __name__ == "__main__":
     X_train, X_test, y_train, y_test = load_data()
 
     if args.model in ("all", "logistic"):
-        lr = train_logistic(X_train, y_train)
-        evaluate("Logistic Regression", lr, X_test, y_test)
-        save_model(lr, "logistic_regression.pkl")
+        maybe_train("Logistic Regression", "logistic_regression.pkl",
+                    train_logistic, X_train, y_train, X_test, y_test, args.force)
+
+    if args.model in ("all", "naive_bayes"):
+        maybe_train("Multinomial Naive Bayes", "naive_bayes.pkl",
+                    train_naive_bayes, X_train, y_train, X_test, y_test, args.force)
+
+    if args.model in ("all", "decision_tree"):
+        maybe_train("Decision Tree", "decision_tree.pkl",
+                    train_decision_tree, X_train, y_train, X_test, y_test, args.force)
+
+    if args.model in ("all", "linear_svm"):
+        maybe_train("Linear SVM (calibrated)", "linear_svm.pkl",
+                    train_linear_svm, X_train, y_train, X_test, y_test, args.force)
 
     if args.model in ("all", "random_forest"):
-        rf = train_random_forest(X_train, y_train, sample_size=args.rf_sample_size)
-        evaluate("Random Forest", rf, X_test, y_test)
-        save_model(rf, "random_forest.pkl")
+        if already_trained("random_forest.pkl") and not args.force:
+            print("\nSkipping Random Forest — random_forest.pkl already exists. Use --force to retrain.")
+        else:
+            rf = train_random_forest(X_train, y_train, sample_size=args.rf_sample_size)
+            evaluate("Random Forest", rf, X_test, y_test)
+            save_model(rf, "random_forest.pkl")
 
     print("\nDone. Classical models trained and saved.")

@@ -273,6 +273,15 @@ def fine_tune(model_name, save_dir, train_df, test_df):
     print(f"  Saved -> {output_dir}")
 
 
+def transformer_artefact_exists(save_dir):
+    """A trained HF model dir is valid if it contains a config.json."""
+    full_dir = os.path.join(ARTIFACT_DIR, save_dir)
+    return os.path.isdir(full_dir) and os.path.exists(os.path.join(full_dir, "config.json"))
+
+
+FORCE_RETRAIN = os.environ.get("FORCE_RETRAIN", "0") == "1"
+
+
 if __name__ == "__main__":
     train_df, test_df = load_splits()
 
@@ -283,6 +292,10 @@ if __name__ == "__main__":
                 f"Choose from {sorted(MODEL_REGISTRY)}."
             )
         model_name, save_dir = MODEL_REGISTRY[model_key]
+        if transformer_artefact_exists(save_dir) and not FORCE_RETRAIN:
+            print(f"\nSkipping {model_name} — {ARTIFACT_DIR}/{save_dir} already exists. "
+                  f"Set FORCE_RETRAIN=1 to refit.")
+            continue
         fine_tune(model_name, save_dir, train_df, test_df)
 
     print("\nDone. Transformer models fine-tuned and saved.")

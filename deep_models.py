@@ -151,40 +151,58 @@ def save_keras_model(model, filename):
     print(f"  Saved -> {path}")
 
 
+def keras_artefact_exists(base_name):
+    """Match the same lookup pattern used by app.py."""
+    for suffix in (".keras", ".h5", ""):
+        path = os.path.join(ARTIFACT_DIR, f"{base_name}{suffix}")
+        if os.path.exists(path):
+            return True
+    return False
+
+
+FORCE_RETRAIN = os.environ.get("FORCE_RETRAIN", "0") == "1"
+
+
 if __name__ == "__main__":
     X_train, X_test, y_train, y_test = load_data()
     class_weight = get_class_weight(y_train)
 
-    print("\nTraining LSTM ...")
-    lstm = build_lstm()
-    lstm.summary()
-    lstm.fit(
-        X_train,
-        y_train,
-        validation_split=0.1,
-        epochs=EPOCHS,
-        batch_size=BATCH_SIZE,
-        callbacks=get_callbacks(),
-        class_weight=class_weight,
-        verbose=1,
-    )
-    evaluate("LSTM", lstm, X_test, y_test)
-    save_keras_model(lstm, "lstm_model.keras")
+    if keras_artefact_exists("lstm_model") and not FORCE_RETRAIN:
+        print("\nSkipping LSTM — artefact already exists. Set FORCE_RETRAIN=1 to retrain.")
+    else:
+        print("\nTraining LSTM ...")
+        lstm = build_lstm()
+        lstm.summary()
+        lstm.fit(
+            X_train,
+            y_train,
+            validation_split=0.1,
+            epochs=EPOCHS,
+            batch_size=BATCH_SIZE,
+            callbacks=get_callbacks(),
+            class_weight=class_weight,
+            verbose=1,
+        )
+        evaluate("LSTM", lstm, X_test, y_test)
+        save_keras_model(lstm, "lstm_model.keras")
 
-    print("\nTraining BiLSTM ...")
-    bilstm = build_bilstm()
-    bilstm.summary()
-    bilstm.fit(
-        X_train,
-        y_train,
-        validation_split=0.1,
-        epochs=EPOCHS,
-        batch_size=BATCH_SIZE,
-        callbacks=get_callbacks(),
-        class_weight=class_weight,
-        verbose=1,
-    )
-    evaluate("BiLSTM", bilstm, X_test, y_test)
-    save_keras_model(bilstm, "bilstm_model.keras")
+    if keras_artefact_exists("bilstm_model") and not FORCE_RETRAIN:
+        print("\nSkipping BiLSTM — artefact already exists. Set FORCE_RETRAIN=1 to retrain.")
+    else:
+        print("\nTraining BiLSTM ...")
+        bilstm = build_bilstm()
+        bilstm.summary()
+        bilstm.fit(
+            X_train,
+            y_train,
+            validation_split=0.1,
+            epochs=EPOCHS,
+            batch_size=BATCH_SIZE,
+            callbacks=get_callbacks(),
+            class_weight=class_weight,
+            verbose=1,
+        )
+        evaluate("BiLSTM", bilstm, X_test, y_test)
+        save_keras_model(bilstm, "bilstm_model.keras")
 
     print("\nDone. Deep learning models trained and saved.")
